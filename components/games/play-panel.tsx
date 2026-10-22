@@ -22,6 +22,8 @@ export function PlayPanel({ game: initial }: { game: GameCardData }) {
   });
   const game = data?.game ?? initial;
   const busy = pending === game.slug;
+  // Signed-in: wait for per-user lock state before allowing Play (the public data shows everything unlocked)
+  const checking = Boolean(user) && !data;
 
   return (
     <Card className="sticky top-24 p-6">
@@ -46,7 +48,7 @@ export function PlayPanel({ game: initial }: { game: GameCardData }) {
           </div>
         ) : (
           <>
-            <Button size="lg" className="w-full" loading={busy} onClick={() => playGame(game.slug)}>
+            <Button size="lg" className="w-full" loading={busy || checking} onClick={() => playGame(game.slug)}>
               <Play className="h-5 w-5 fill-current" /> {game.activeSessionId ? 'Continue game' : 'Play now'}
             </Button>
             {game.activeSessionId && (

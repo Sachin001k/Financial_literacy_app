@@ -5,6 +5,7 @@ import { BarChart3, History, Settings, Trophy } from 'lucide-react';
 import { useProgress } from '@/components/learn/use-lesson-progress';
 import { FadeIn } from '@/components/motion/fade-in';
 import { useAuth } from '@/components/providers/auth-provider';
+import { Button } from '@/components/ui/button';
 import { AchievementGrid } from './achievement-grid';
 import { AssessmentChart } from './assessment-chart';
 import { HistoryTabs } from './history-tabs';
@@ -24,8 +25,19 @@ function Section({ icon, title, children, id }: { icon: ReactNode; title: string
 }
 
 export function ProfilePage() {
-  const { me, loading } = useAuth();
+  const { me, loading, refreshMe } = useAuth();
   const { data: progress } = useProgress();
+
+  if (!loading && !me) {
+    return (
+      <div className="container-page py-20 text-center" role="alert">
+        <p className="text-4xl" aria-hidden>😕</p>
+        <h1 className="mt-3 text-2xl font-bold">We couldn’t load your profile</h1>
+        <p className="mt-1 text-muted">Check your connection and try again.</p>
+        <Button className="mt-6" onClick={() => void refreshMe()}>Try again</Button>
+      </div>
+    );
+  }
 
   if (loading || !me) {
     return (
@@ -37,7 +49,8 @@ export function ProfilePage() {
     );
   }
 
-  const gamesFinished = progress?.games.length ?? 0;
+  // Distinct games finished (history rows can repeat a game)
+  const gamesFinished = new Set(progress?.games.map((g) => g.game_slug) ?? []).size;
   const lessonsDone = progress?.lessons.filter((l) => l.status === 'COMPLETED').length ?? 0;
 
   return (

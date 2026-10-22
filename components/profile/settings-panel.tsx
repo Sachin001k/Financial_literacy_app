@@ -30,6 +30,9 @@ export function SettingsPanel({ me }: { me: MeSummary }) {
       await refreshMe();
     } catch (e) {
       setS(prev);
+      // Undo the side effects applied optimistically above
+      if (key === 'soundOn') setEnabled(prev.soundOn);
+      if (key === 'theme') setTheme(prev.theme);
       toast.error('Could not save setting', (e as Error).message);
     }
   }

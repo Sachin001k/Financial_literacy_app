@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useProgress } from '@/components/learn/use-lesson-progress';
 import { Badge } from '@/components/ui/badge';
 import { Tabs } from '@/components/ui/tabs';
-import { getCategory } from '@/lib/content/lessons';
+import { getCategory } from '@/lib/content/categories';
 import { formatINR } from '@/lib/format';
 import { useAssessments } from './use-assessments';
 

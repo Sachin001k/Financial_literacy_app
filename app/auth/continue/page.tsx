@@ -7,6 +7,19 @@ import { api, gameApi } from '@/lib/api';
 import { peekIntent, takeIntent } from '@/lib/intent';
 import type { MeSummary } from '@/lib/server/me';
 
+/** Same-origin relative paths only; anything else (//evil.com, /\\evil.com, absolute URLs) falls back to /home. */
+function safeNext(next: string | null): string {
+  if (!next || !next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return '/home';
+  try {
+    const url = new URL(next, window.location.origin);
+    if (url.origin !== window.location.origin) return '/home';
+    const path = `${url.pathname}${url.search}${url.hash}`;
+    return ['/login', '/signup', '/'].includes(url.pathname) ? '/home' : path;
+  } catch {
+    return '/home';
+  }
+}
+
 /** After signup/login: new users go through /welcome; otherwise resume the stored play intent or `next`. */
 function Continue() {
   const router = useRouter();
@@ -17,17 +30,22 @@ function Continue() {
     if (ran.current) return;
     ran.current = true;
     (async () => {
-      const next = params.get('next') ?? '/home';
+      const next = safeNext(params.get('next'));
       try {
         const me = await api<MeSummary>('/me');
         if (!me.onboarded) return router.replace('/welcome');
         const intent = peekIntent();
         if (intent?.intent === 'PLAY') {
           takeIntent();
-          const s = await gameApi.start(intent.slug, { daily: intent.daily });
-          return router.replace(`/play/${s.sessionId}`);
+          try {
+            const s = await gameApi.start(intent.slug, { daily: intent.daily });
+            return router.replace(`/play/${s.sessionId}`);
+          } catch {
+            // e.g. the game is locked for this player: show its page, which explains why
+            return router.replace(`/games/${encodeURIComponent(intent.slug)}`);
+          }
         }
-        router.replace(next.startsWith('/') && !['/login', '/signup', '/'].includes(next) ? next : '/home');
+        router.replace(next);
       } catch {
         router.replace('/home');
       }

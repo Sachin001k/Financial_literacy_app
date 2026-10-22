@@ -19,7 +19,8 @@ import { cn } from '@/lib/utils';
 interface QuizResult {
   score: number;
   passed: boolean;
-  review: { correct: boolean; correctIndex: number; explanation: string }[];
+  /** Answers and explanations are only revealed once the quiz is passed. */
+  review: { correct: boolean; correctIndex?: number; explanation?: string }[];
   progress: ProgressUpdate | null;
 }
 
@@ -127,7 +128,7 @@ export function QuizBlock({ slug, questions, color }: { slug: string; questions:
                 {result.passed ? <Trophy className="h-10 w-10" /> : <RotateCcw className="h-10 w-10" />}
               </motion.div>
               <p className="mt-4 text-4xl font-extrabold"><CountUp value={result.score} format={(n) => `${Math.round(n)}%`} /></p>
-              <p className="text-muted">{result.passed ? 'Lesson complete!' : 'Score 50% or more to complete the lesson.'}</p>
+              <p className="text-muted">{result.passed ? 'Lesson complete!' : 'So close! Re-read the lesson and try again — you need 50% to complete it. We’ll show the answers once you pass.'}</p>
               {result.progress && result.progress.xpEarned > 0 && (
                 <motion.p initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }} className="mt-3 rounded-full bg-coin/15 px-4 py-1.5 font-bold text-coin">
                   +<CountUp value={result.progress.xpEarned} /> XP
@@ -148,8 +149,8 @@ export function QuizBlock({ slug, questions, color }: { slug: string; questions:
                       {r.correct ? <Check className="mt-0.5 h-5 w-5 shrink-0 text-gain" /> : <X className="mt-0.5 h-5 w-5 shrink-0 text-loss" />}
                       {qq.prompt}
                     </p>
-                    {!r.correct && <p className="ml-7 mt-1 text-sm">Correct answer: <strong>{qq.options[r.correctIndex]}</strong></p>}
-                    <p className="ml-7 mt-1 text-sm text-muted">{r.explanation}</p>
+                    {!r.correct && r.correctIndex !== undefined && <p className="ml-7 mt-1 text-sm">Correct answer: <strong>{qq.options[r.correctIndex]}</strong></p>}
+                    {r.explanation && <p className="ml-7 mt-1 text-sm text-muted">{r.explanation}</p>}
                   </motion.li>
                 );
               })}

@@ -19,7 +19,16 @@ export function useGameSections() {
     queryFn: () => api<{ games: GameCardData[]; sections: Sections }>('/games'),
     enabled: Boolean(user),
   });
-  return { sections: (user && q.data?.sections) || (publicSections() as Sections), games: q.data?.games, loading: Boolean(user) && q.isLoading };
+  const loading = Boolean(user) && !q.data;
+  if (user && q.data) return { sections: q.data.sections, games: q.data.games, loading: false };
+  const sections = publicSections() as Sections;
+  if (!loading) return { sections, games: undefined, loading };
+  // Signed-in data not here yet: hold Play until we know the player's locks (public data shows everything open).
+  return {
+    sections: sections.map((s) => ({ ...s, games: s.games.map((g) => ({ ...g, locked: { reason: 'Checking your progress…' } })) })),
+    games: undefined,
+    loading,
+  };
 }
 
 export function LandingGames() {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ArrowRight, BookOpen, CheckCircle2, Flame, Gamepad2, Play, Timer, Trophy, Wallet } from 'lucide-react';
 import { Avatar } from '@/components/layout/navbar';
@@ -10,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useStartGame } from '@/hooks/use-start-game';
+import { queryKeys } from '@/lib/api';
 import { formatINR } from '@/lib/format';
 import { getGame } from '@/lib/content/games';
 import type { HomeData } from './types';
@@ -83,14 +85,28 @@ export function ContinueLessonCard({ lesson }: { lesson: NonNullable<HomeData['c
   );
 }
 
+/** Counts down to `endsAt`; when it hits zero, refetches so tomorrow's challenge replaces the stale one. */
 function useCountdown(endsAt: string) {
+  const qc = useQueryClient();
   const [left, setLeft] = useState<number | null>(null);
   useEffect(() => {
-    const tick = () => setLeft(Math.max(0, Date.parse(endsAt) - Date.now()));
+    let expired = false;
+    const tick = () => {
+      const ms = Math.max(0, Date.parse(endsAt) - Date.now());
+      setLeft(ms);
+      if (ms === 0 && !expired) {
+        expired = true;
+        // Small delay so the server's IST date has rolled over
+        setTimeout(() => {
+          void qc.invalidateQueries({ queryKey: queryKeys.home });
+          void qc.invalidateQueries({ queryKey: queryKeys.daily });
+        }, 2000);
+      }
+    };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [endsAt]);
+  }, [endsAt, qc]);
   if (left === null) return '--:--:--';
   const s = Math.floor(left / 1000);
   return [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60].map((n) => String(n).padStart(2, '0')).join(':');

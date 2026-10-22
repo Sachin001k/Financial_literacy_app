@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { animate, useInView, useReducedMotion } from 'framer-motion';
+import { animate, useInView, useReducedMotionConfig } from 'framer-motion';
 
 const defaultFormat = (n: number) => Math.round(n).toLocaleString('en-IN');
 
@@ -9,7 +9,7 @@ const defaultFormat = (n: number) => Math.round(n).toLocaleString('en-IN');
 export function CountUp({ value, from = 0, duration = 1.2, format = defaultFormat, className }: { value: number; from?: number; duration?: number; format?: (n: number) => string; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true });
-  const reduce = useReducedMotion();
+  const reduce = useReducedMotionConfig();
   const last = useRef(from);
   // Kept in a ref so inline format lambdas don't restart (and skip) the animation on every render.
   const formatRef = useRef(format);

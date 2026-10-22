@@ -7,8 +7,10 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { LogOut, Menu, Moon, Sun, User as UserIcon, Volume2, VolumeX, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/components/providers/auth-provider';
+import { toast } from '@/components/providers/toaster';
 import { useSound } from '@/components/providers/sound-provider';
 import { Button } from '@/components/ui/button';
+import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Logo } from './logo';
 import { WalletChip, XPChip } from './user-chips';
@@ -35,7 +37,7 @@ export function Avatar({ name, url, size = 36 }: { name: string; url?: string | 
 
 export function Navbar() {
   const pathname = usePathname();
-  const { user, me, openGate, signOut } = useAuth();
+  const { user, me, openGate, signOut, refreshMe } = useAuth();
   const { enabled, setEnabled } = useSound();
   const { resolvedTheme, setTheme } = useTheme();
   const [scrolled, setScrolled] = useState(false);
@@ -55,6 +57,31 @@ export function Navbar() {
     setMobileOpen(false);
     setMenuOpen(false);
   }, [pathname]);
+
+  /** Signed-in users' choices are saved, so SettingsBridge/SoundProvider don't snap them back. */
+  async function saveSetting(patch: { soundOn?: boolean; theme?: 'light' | 'dark' }, undo: () => void) {
+    if (!user) return;
+    try {
+      await api('/me/settings', { method: 'PATCH', json: patch });
+      await refreshMe();
+    } catch (e) {
+      undo();
+      toast.error('Could not save setting', (e as Error).message);
+    }
+  }
+
+  const toggleSound = () => {
+    const next = !enabled;
+    setEnabled(next);
+    void saveSetting({ soundOn: next }, () => setEnabled(!next));
+  };
+
+  const toggleTheme = () => {
+    const prev = resolvedTheme === 'dark' ? 'dark' : 'light';
+    const next = prev === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    void saveSetting({ theme: next }, () => setTheme(me?.settings.theme ?? prev));
+  };
 
   if (pathname?.startsWith('/play/')) return null;
 
@@ -89,10 +116,10 @@ export function Navbar() {
               <WalletChip balance={me.wallet.balance} />
             </div>
           )}
-          <button onClick={() => setEnabled(!enabled)} className="hidden rounded-xl p-2 text-muted hover:bg-surface-2 hover:text-fg sm:block" aria-label={enabled ? 'Mute sounds' : 'Unmute sounds'}>
+          <button onClick={toggleSound} className="hidden rounded-xl p-2 text-muted hover:bg-surface-2 hover:text-fg sm:block" aria-label={enabled ? 'Mute sounds' : 'Unmute sounds'}>
             {enabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
           </button>
-          <button onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')} className="rounded-xl p-2 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Toggle dark mode">
+          <button onClick={toggleTheme} className="rounded-xl p-2 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Toggle dark mode">
             {mounted && resolvedTheme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
           {user ? (

@@ -9,3 +9,5 @@ export const GET = handle(async (req: Request, { params }: { params: { symbol: s
   if (!bars) throw new ApiError(404, 'ASSET_NOT_FOUND', 'Unknown symbol.');
   return ok({ symbol: params.symbol.toUpperCase(), bars });
 });
+
+export const dynamic = 'force-dynamic';

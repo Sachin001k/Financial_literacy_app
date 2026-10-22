@@ -151,7 +151,7 @@ export function PortfolioBuilderBoard({ state, actions, onAction, busy }: Render
           <p className="text-xs text-muted">{p.name} can afford up to {formatINR(p.monthlyBudget)} a month. More SIP = more compounding.</p>
         </div>
         <Button size="lg" className="w-full" disabled={busy || !actions.some((a) => a.type === 'ALLOCATE')} onClick={() => onAction('ALLOCATE', { ...alloc, sip })}>
-          <Lock className="h-4 w-4" /> Lock it in and fast-forward 5 years
+          <Lock className="h-4 w-4" /> Lock it in and fast-forward {state.midYear ?? 5} years
         </Button>
       </div>
     );
@@ -165,7 +165,7 @@ export function PortfolioBuilderBoard({ state, actions, onAction, busy }: Render
       {chart}
       {state.phase === 'REVIEW' && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="rounded-3xl border-2 border-brand/40 bg-surface p-5">
-          <h2 className="flex items-center gap-2 text-xl font-bold"><Scale className="h-5 w-5 text-brand" /> Year 5 check-up</h2>
+          <h2 className="flex items-center gap-2 text-xl font-bold"><Scale className="h-5 w-5 text-brand" /> Year {state.midYear ?? 5} check-up</h2>
           <p className="mt-1 text-sm text-muted">Markets moved, so your mix drifted. Rebalance back to plan, or hold?</p>
           <div className="mt-4 space-y-2">
             {KEYS.map((k) => (

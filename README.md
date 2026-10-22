@@ -48,10 +48,14 @@ The rules from the doc still hold. Game engines are pure and seeded. The client 
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` public key |
    | `SUPABASE_SERVICE_ROLE_KEY` | `service_role` key (server only, never commit it) |
    | `NEXT_PUBLIC_SITE_URL` | `http://localhost:3000` locally, your domain in production |
+   | `DAILY_SEED_SECRET` | Optional: any random string; keeps daily-challenge outcomes unguessable (defaults to the service-role key) |
 4. **Configure auth** (Dashboard → Authentication):
    - *URL Configuration*: set Site URL to `NEXT_PUBLIC_SITE_URL` and add `http://localhost:3000/auth/callback` (and your production `/auth/callback`) to Redirect URLs.
    - *Providers → Google*: optional. Enable it and paste your Google OAuth client ID and secret.
    - *Providers → Email*: if "Confirm email" is on, new users must click the email link before they can play.
+   - *Email Templates → Confirm signup*: so the link also works when opened on another device, change the link to
+     `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email&next=/welcome`.
+     With the default template, a link opened in a different browser still confirms the email, and the user is asked to log in.
 5. **Optional:** enable the `pg_cron` extension, then re-run `0002_jobs.sql` to schedule the hourly cleanup of idle sessions.
 6. **Install and run:**
    ```bash
@@ -109,7 +113,7 @@ All routes live under `/api/v1`. Errors look like `{ "error": { "code": "TURN_MI
 | `GET /market/assets`, `GET /market/assets/:symbol/bars` | User | Synthetic price data for stock games |
 | `POST /feedback` | Public | About-page feedback form |
 
-Rate limits: auth 10/min per IP, game actions 60/min per user. They are kept in memory, so move them to a shared store (for example Upstash Redis) before running several instances.
+Rate limits: auth 10/min per IP; per user: game actions 60/min, game starts and finishes 20/min, quiz submits 20/min. They are kept in memory, so move them to a shared store (for example Upstash Redis) before running several instances.
 
 ## Adding a game
 

@@ -10,7 +10,7 @@ import { toast } from '@/components/providers/toaster';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { api, queryKeys } from '@/lib/api';
-import { CATEGORIES } from '@/lib/content/lessons';
+import { CATEGORIES } from '@/lib/content/categories';
 import { cn } from '@/lib/utils';
 import { useAssessments } from './use-assessments';
 

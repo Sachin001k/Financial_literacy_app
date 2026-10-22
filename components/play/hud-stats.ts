@@ -34,7 +34,7 @@ export function hudStats(slug: string, s: any): { progress: string; stats: HudSt
     case 'bull-or-bear':
       return { progress: `Round ${Math.min(s.round + 1, s.rounds)}/${s.rounds}`, stats: [{ label: 'Correct', value: String(s.correct), tone: 'gain' }, { label: 'Streak', value: `🔥 ${s.streak}`, tone: 'coin' }] };
     case 'portfolio-builder':
-      return { progress: s.phase === 'ALLOCATE' ? 'Step 1/2 · Build' : s.phase === 'REVIEW' ? 'Step 2/2 · Year 5' : 'Year 10', stats: [{ label: 'Persona', value: `${s.persona.emoji} ${s.persona.name}`, tone: 'brand' }] };
+      return { progress: s.phase === 'ALLOCATE' ? 'Step 1/2 · Build' : s.phase === 'REVIEW' ? `Step 2/2 · Year ${s.midYear ?? 5}` : `Year ${s.years ?? 10}`, stats: [{ label: 'Persona', value: `${s.persona.emoji} ${s.persona.name}`, tone: 'brand' }] };
     case 'scam-or-legit':
       return { progress: `Message ${Math.min(s.index + 1, s.deck.length)}/${s.deck.length}`, stats: [{ label: 'Caught', value: String(s.correct), tone: 'gain' }, { label: 'Missed scams', value: String(s.scamsMissed), tone: s.scamsMissed ? 'loss' : undefined }] };
     default:

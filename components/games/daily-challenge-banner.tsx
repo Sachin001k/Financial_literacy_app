@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Flame, Play, Timer } from 'lucide-react';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -14,12 +14,20 @@ interface DailyResponse {
   daily: { date: string; gameSlug: string; title: string; blurb: string; xpReward: number; endsAt: string; completed: boolean };
 }
 
+/** Counts down to `endsAt`; when it hits zero, refetches so tomorrow's challenge replaces the stale one. */
 function useCountdown(endsAt?: string) {
+  const qc = useQueryClient();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+  const expired = Boolean(endsAt) && Date.parse(endsAt!) <= now;
+  useEffect(() => {
+    if (!expired) return;
+    const t = setTimeout(() => void qc.invalidateQueries({ queryKey: queryKeys.daily }), 2000);
+    return () => clearTimeout(t);
+  }, [expired, qc]);
   if (!endsAt) return '';
   const ms = Math.max(0, Date.parse(endsAt) - now);
   const h = Math.floor(ms / 3_600_000);

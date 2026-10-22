@@ -72,7 +72,8 @@ export function AuthForm({ mode, onModeChange, next = '/home', onDone }: { mode:
       onDone?.();
       window.location.href = continueUrl;
     } catch (err) {
-      setError((err as Error).message);
+      const msg = (err as Error).message;
+      setError(/database error saving new user/i.test(msg) ? 'We could not create your account. Check your age details and try again.' : msg);
     } finally {
       setLoading(false);
     }
