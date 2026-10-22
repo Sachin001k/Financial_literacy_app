@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens: indigo brand, green gains, red losses, amber XP/coins. Values are RGB channels for Tailwind alpha. */
+:root {
+  --bg: 248 248 252;
+  --surface: 255 255 255;
+  --surface-2: 241 242 249;
+  --border: 226 228 240;
+  --fg: 17 19 38;
+  --muted: 98 102 128;
+  --brand: 79 70 229;
+  --brand-soft: 224 231 255;
+  --gain: 22 163 74;
+  --loss: 220 38 38;
+  --coin: 245 158 11;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: 9 10 22;
+  --surface: 18 20 38;
+  --surface-2: 27 30 54;
+  --border: 44 48 80;
+  --fg: 238 239 250;
+  --muted: 150 154 186;
+  --brand: 129 140 248;
+  --brand-soft: 39 42 89;
+  --gain: 74 222 128;
+  --loss: 248 113 113;
+  --coin: 251 191 36;
+  color-scheme: dark;
+}
+
+.high-contrast {
+  --muted: 60 62 80;
+  --border: 120 124 150;
+}
+.dark.high-contrast {
+  --muted: 210 212 230;
+  --border: 160 164 200;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-bg text-fg antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+h1, h2, h3, h4 {
+  @apply font-display tracking-tight;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--brand));
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+  }
+  .glass {
+    @apply border border-border/60 bg-surface/70 backdrop-blur-xl;
+  }
+  .text-gradient {
+    background: linear-gradient(100deg, rgb(var(--brand)) 0%, #22c55e 50%, rgb(var(--coin)) 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 6s linear infinite;
+  }
+  .grid-bg {
+    background-image:
+      linear-gradient(rgb(var(--border) / 0.5) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--border) / 0.5) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  }
+  .skeleton {
+    @apply rounded-xl bg-surface-2;
+    background-image: linear-gradient(90deg, transparent, rgb(var(--border) / 0.6), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+  .prose-lesson p { @apply my-3 leading-7 text-fg/90; }
+  .prose-lesson h2 { @apply mb-2 mt-8 text-xl font-semibold; }
+  .prose-lesson ul { @apply my-3 list-disc space-y-1.5 pl-6; }
+  .prose-lesson strong { @apply font-semibold text-fg; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.reduce-motion *, .reduce-motion *::before, .reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
