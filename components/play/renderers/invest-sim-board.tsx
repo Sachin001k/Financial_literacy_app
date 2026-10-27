@@ -23,9 +23,26 @@ function RiskDots({ risk }: { risk: number }) {
   );
 }
 
+/** 25% / 50% / Max shortcuts for a buy limit (cash) or a sell limit (units held). */
+function QuickQty({ label, max, onPick }: { label: string; max: number; onPick: (n: number) => void }) {
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-xs text-muted">{label}</span>
+      {[0.25, 0.5, 1].map((f) => (
+        <button key={f} onClick={() => onPick(Math.max(1, Math.floor(max * f)))} className="h-11 rounded-xl bg-surface-2 px-3 text-xs font-semibold hover:bg-border disabled:opacity-50" disabled={!max}>
+          {f === 1 ? 'Max' : `${f * 100}%`}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function InvestSimBoard({ state, actions, onAction, busy }: RendererProps<InvestSimState>) {
   const [selected, setSelected] = useState<string | null>(null);
-  const [qty, setQty] = useState(1);
+  // Kept as text so the box can be cleared while typing; parsed into `qty`.
+  const [qtyText, setQtyText] = useState('1');
+  const qty = Math.max(0, Math.floor(Number(qtyText) || 0));
+  const setQty = (n: number) => setQtyText(String(n));
   const canBuy = actions.some((a) => a.type === 'BUY');
   const canSell = actions.some((a) => a.type === 'SELL');
   const nextLabel = actions.find((a) => a.type === 'NEXT_YEAR')?.label ?? 'Next year';
@@ -46,6 +63,10 @@ export function InvestSimBoard({ state, actions, onAction, busy }: RendererProps
   const selPrice = selected ? state.prices[selected] : 0;
   const holding = selected ? state.portfolio.holdings.find((h) => h.symbol === selected) : undefined;
   const maxBuy = selPrice ? Math.floor(state.portfolio.cash / selPrice) : 0;
+  const held = holding?.qty ?? 0;
+  // Say why Buy/Sell are greyed out instead of leaving the player guessing.
+  const buyBlocked = !canBuy ? 'Buying is closed for this year.' : qty < 1 ? 'Enter at least 1 unit.' : qty > maxBuy ? (maxBuy ? `You can afford up to ${maxBuy} units.` : 'Not enough cash for 1 unit.') : null;
+  const sellBlocked = !canSell || !held ? null : qty > held ? `You only own ${held} units.` : null;
 
   const chartData = state.history.map((h) => ({ year: `Y${h.year}`, Portfolio: Math.round(h.value / 100), 'Fixed deposit': Math.round(h.fd / 100) }));
 
@@ -135,21 +156,19 @@ export function InvestSimBoard({ state, actions, onAction, busy }: RendererProps
               <div className="mt-4 flex flex-wrap items-end gap-3">
                 <label className="text-sm">
                   <span className="mb-1 block text-muted">Units</span>
-                  <input type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Math.floor(Number(e.target.value) || 1)))} className="h-11 w-28 rounded-xl border border-border bg-surface px-3 tabular-nums outline-none focus:border-brand" />
+                  <input type="number" min={1} inputMode="numeric" value={qtyText} onChange={(e) => setQtyText(e.target.value)} onBlur={() => qty < 1 && setQty(1)} className="h-11 w-28 rounded-xl border border-border bg-surface px-3 tabular-nums outline-none focus:border-brand" />
                 </label>
-                <div className="flex gap-1">
-                  {[0.25, 0.5, 1].map((f) => (
-                    <button key={f} onClick={() => setQty(Math.max(1, Math.floor(maxBuy * f)))} className="h-11 rounded-xl bg-surface-2 px-3 text-xs font-semibold hover:bg-border" disabled={!maxBuy}>
-                      {f === 1 ? 'Max' : `${f * 100}%`}
-                    </button>
-                  ))}
-                </div>
+                <QuickQty label="Buy" max={maxBuy} onPick={setQty} />
+                {held > 0 && <QuickQty label="Sell" max={held} onPick={setQty} />}
                 <p className="text-sm text-muted">Cost: <strong className="text-fg">{formatINR(qty * selPrice)}</strong></p>
                 <div className="ml-auto flex gap-2">
-                  <Button variant="gain" disabled={!canBuy || busy || qty > maxBuy} onClick={() => onAction('BUY', { symbol: sel.symbol, qty })}>Buy</Button>
-                  <Button variant="loss" disabled={!canSell || busy || !holding || qty > holding.qty} onClick={() => onAction('SELL', { symbol: sel.symbol, qty })}>Sell</Button>
+                  <Button variant="gain" disabled={Boolean(buyBlocked) || busy} title={buyBlocked ?? undefined} onClick={() => onAction('BUY', { symbol: sel.symbol, qty })}>Buy</Button>
+                  <Button variant="loss" disabled={!canSell || busy || !held || qty < 1 || qty > held} title={sellBlocked ?? (held ? undefined : 'You don’t own any of this yet.')} onClick={() => onAction('SELL', { symbol: sel.symbol, qty })}>Sell</Button>
                 </div>
               </div>
+              {(buyBlocked || sellBlocked) && qty > 0 && (
+                <p className="mt-2 text-xs text-coin" role="status">{[buyBlocked && canBuy ? buyBlocked : null, sellBlocked].filter(Boolean).join(' ')}</p>
+              )}
               {holding && <p className="mt-2 text-xs text-muted">You own {holding.qty} units, bought at {formatINR(holding.avgPrice, { decimals: true })} on average.</p>}
             </div>
           </motion.div>

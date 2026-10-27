@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/components/providers/auth-provider';
 import { Dialog } from '@/components/ui/dialog';
+import { clearIntent } from '@/lib/intent';
 import { AuthForm } from './auth-form';
 
 /** Global signup gate, opened by useRequireAuth(). The stored intent resumes after auth. */
@@ -11,7 +12,8 @@ export function AuthGateModal() {
   const { gate, openGate, closeGate } = useAuth();
   const pathname = usePathname();
   return (
-    <Dialog open={gate.open} onClose={closeGate} labelledBy="gate-title">
+    // Dismissing the gate drops the saved intent; a successful sign-in (onDone below) keeps it.
+    <Dialog open={gate.open} onClose={() => { clearIntent(); closeGate(); }} labelledBy="gate-title">
       <div className="mb-5 text-center">
         <motion.div initial={{ rotate: -20, scale: 0 }} animate={{ rotate: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 14 }} className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand to-emerald-500 text-2xl shadow-lg">
           🎮

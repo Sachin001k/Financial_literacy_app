@@ -36,6 +36,7 @@ The rules from the doc still hold. Game engines are pure and seeded. The client 
 2. **Run the migrations.** In the Supabase SQL editor, run these files in order:
    - `supabase/migrations/0001_init.sql`
    - `supabase/migrations/0002_jobs.sql`
+   - `supabase/migrations/0003_fixes.sql`
 
    If you use the Supabase CLI instead, run `supabase db push`.
 3. **Add your keys.** Copy `.env.example` to `.env.local` and fill in the values from *Project Settings → API*:

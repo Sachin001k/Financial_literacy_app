@@ -15,7 +15,7 @@ import type { GameCardData } from '@/lib/server/catalogue';
 export function PlayPanel({ game: initial }: { game: GameCardData }) {
   const { user } = useAuth();
   const { playGame, pending } = useStartGame();
-  const { data } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: [...queryKeys.game(initial.slug), user?.id],
     queryFn: () => api<{ game: GameCardData }>(`/games/${initial.slug}`),
     enabled: Boolean(user),
@@ -23,7 +23,8 @@ export function PlayPanel({ game: initial }: { game: GameCardData }) {
   const game = data?.game ?? initial;
   const busy = pending === game.slug;
   // Signed-in: wait for per-user lock state before allowing Play (the public data shows everything unlocked)
-  const checking = Boolean(user) && !data;
+  // (If that check fails, allow Play anyway: the server rejects a locked game with a clear message.)
+  const checking = Boolean(user) && !data && !isError;
 
   return (
     <Card className="sticky top-24 p-6">

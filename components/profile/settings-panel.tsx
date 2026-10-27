@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LogOut, Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -19,6 +19,8 @@ export function SettingsPanel({ me }: { me: MeSummary }) {
   const { setEnabled } = useSound();
   const { setTheme } = useTheme();
   const [s, setS] = useState<Settings>(me.settings);
+  // Stay in sync when settings change elsewhere (e.g. the navbar sound/theme toggles).
+  useEffect(() => setS(me.settings), [me.settings]);
 
   async function update<K extends keyof Settings>(key: K, value: Settings[K]) {
     const prev = s;
@@ -37,9 +39,9 @@ export function SettingsPanel({ me }: { me: MeSummary }) {
     }
   }
 
-  const toggles: { key: 'soundOn' | 'musicOn' | 'reducedMotion' | 'highContrast'; label: string; hint: string }[] = [
+  // No background music exists yet, so musicOn is stored but not offered here.
+  const toggles: { key: 'soundOn' | 'reducedMotion' | 'highContrast'; label: string; hint: string }[] = [
     { key: 'soundOn', label: 'Sound effects', hint: 'Clicks, coins and celebrations' },
-    { key: 'musicOn', label: 'Music', hint: 'Background music in games' },
     { key: 'reducedMotion', label: 'Reduce motion', hint: 'Turn off most animations' },
     { key: 'highContrast', label: 'High contrast', hint: 'Stronger text and borders' },
   ];

@@ -61,6 +61,12 @@ export function AuthForm({ mode, onModeChange, next = '/home', onDone }: { mode:
           },
         });
         if (error) throw error;
+        // With email confirmation on, an already-registered email comes back with no identities and no email is sent.
+        if (data.user && data.user.identities?.length === 0) {
+          setError('An account with this email already exists. Log in instead.');
+          onModeChange?.('login');
+          return;
+        }
         if (!data.session) {
           setCheckEmail(true);
           return;
@@ -81,10 +87,17 @@ export function AuthForm({ mode, onModeChange, next = '/home', onDone }: { mode:
 
   async function google() {
     if (!isSupabaseConfigured) return setError('Supabase keys are missing. Add them to .env.local.');
-    await getSupabaseBrowser().auth.signInWithOAuth({
+    setError(null);
+    setLoading(true);
+    const { error } = await getSupabaseBrowser().auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
     });
+    // On success the browser is already navigating to Google, so only reset on failure.
+    if (error) {
+      setLoading(false);
+      setError(error.message);
+    }
   }
 
   if (checkEmail) {
@@ -101,7 +114,7 @@ export function AuthForm({ mode, onModeChange, next = '/home', onDone }: { mode:
 
   return (
     <div>
-      <Button type="button" variant="outline" className="w-full" onClick={google}>
+      <Button type="button" variant="outline" className="w-full" onClick={google} disabled={loading}>
         <GoogleIcon /> Continue with Google
       </Button>
       <div className="my-5 flex items-center gap-3 text-xs text-muted">

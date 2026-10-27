@@ -35,6 +35,9 @@ export const POST = handle(async (req: Request) => {
     Object.assign(update, { age_band: body.ageBand, parent_consent: Boolean(body.parentConsent), age_confirmed: true });
   }
 
+  // Score before claiming below, so a bad answer count can't mark the user onboarded without the baseline.
+  const scored = body.assessmentAnswers?.length ? scoreAssessment(body.assessmentAnswers) : null;
+
   const { error } = await db.from('profiles').update(update).eq('id', user.id);
   if (error) throw new ApiError(500, 'SAVE_FAILED', error.message);
 
@@ -48,8 +51,8 @@ export const POST = handle(async (req: Request) => {
   const firstTime = Boolean(claimed?.length);
 
   let assessment = null;
-  if (firstTime && body.assessmentAnswers?.length) {
-    const { score, breakdown } = scoreAssessment(body.assessmentAnswers);
+  if (firstTime && scored) {
+    const { score, breakdown } = scored;
     const { data } = await db.from('assessments').insert({ user_id: user.id, type: 'ONBOARDING', score, breakdown }).select('*').single();
     assessment = data;
   }

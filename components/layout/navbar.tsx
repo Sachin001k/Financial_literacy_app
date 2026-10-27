@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -44,6 +44,7 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -57,6 +58,21 @@ export function Navbar() {
     setMobileOpen(false);
     setMenuOpen(false);
   }, [pathname]);
+
+  // Close the account menu on an outside click or Escape.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointer = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false);
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   /** Signed-in users' choices are saved, so SettingsBridge/SoundProvider don't snap them back. */
   async function saveSetting(patch: { soundOn?: boolean; theme?: 'light' | 'dark' }, undo: () => void) {
@@ -123,7 +139,7 @@ export function Navbar() {
             {mounted && resolvedTheme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
           {user ? (
-            <div className="relative">
+            <div className="relative" ref={menuRef}>
               <button onClick={() => setMenuOpen((o) => !o)} className="rounded-full" aria-label="Account menu" aria-expanded={menuOpen}>
                 <Avatar name={me?.displayName ?? user.email ?? 'P'} url={me?.avatarUrl} />
               </button>

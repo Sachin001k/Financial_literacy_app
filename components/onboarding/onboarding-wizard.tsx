@@ -24,7 +24,8 @@ export function OnboardingWizard() {
   const router = useRouter();
   const { me, refreshMe } = useAuth();
   const { play } = useSound();
-  const [step, setStep] = useState(0);
+  // Track the step by name: STEPS gains 'age' once `me` loads, which would shift an index.
+  const [current, setCurrent] = useState<Step>('intro');
   const [dir, setDir] = useState(1);
   const [familiarity, setFamiliarity] = useState<Familiarity | null>(null);
   const [answers, setAnswers] = useState<(number | null)[]>([]);
@@ -52,11 +53,11 @@ export function OnboardingWizard() {
     if (questions.length && answers.length !== questions.length) setAnswers(questions.map(() => null));
   }, [questions, answers.length]);
 
-  const current: Step = STEPS[Math.min(step, STEPS.length - 1)];
+  const step = Math.max(0, STEPS.indexOf(current));
   const go = (delta: number) => {
     play('click');
     setDir(delta);
-    setStep((s) => Math.min(STEPS.length - 1, Math.max(0, s + delta)));
+    setCurrent(STEPS[Math.min(STEPS.length - 1, Math.max(0, step + delta))]);
   };
 
   const ageOk = ageBand !== null && ageBand !== 'UNDER_13' && (ageBand !== 'TEEN_13_17' || consent);

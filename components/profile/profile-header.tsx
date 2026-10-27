@@ -12,6 +12,9 @@ import { api } from '@/lib/api';
 import { getSupabaseBrowser } from '@/lib/supabase/client';
 import type { MeSummary } from '@/lib/server/me';
 
+/** Must match allowed_mime_types on the `avatars` bucket (0001_init.sql). */
+const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+
 export function ProfileHeader({ me }: { me: MeSummary }) {
   const { refreshMe } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -21,7 +24,7 @@ export function ProfileHeader({ me }: { me: MeSummary }) {
   const [saving, setSaving] = useState(false);
 
   async function upload(file: File) {
-    if (!file.type.startsWith('image/')) return toast.error('Please choose an image');
+    if (!AVATAR_TYPES.includes(file.type)) return toast.error('Please choose a PNG, JPEG, WebP or GIF image');
     if (file.size > 2 * 1024 * 1024) return toast.error('Image too large', 'Keep it under 2 MB.');
     setUploading(true);
     try {
@@ -64,7 +67,18 @@ export function ProfileHeader({ me }: { me: MeSummary }) {
           <button onClick={() => fileRef.current?.click()} disabled={uploading} className="absolute bottom-1 right-1 grid h-9 w-9 place-items-center rounded-full bg-brand text-white shadow-lg transition hover:scale-110 disabled:opacity-60" aria-label="Change avatar">
             {uploading ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Camera className="h-4 w-4" />}
           </button>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+          <input
+            ref={fileRef}
+            type="file"
+            accept={AVATAR_TYPES.join(',')}
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              // Reset so picking the same file again still fires onChange.
+              e.target.value = '';
+              if (file) void upload(file);
+            }}
+          />
         </motion.div>
         <div className="flex-1 text-center sm:text-left">
           {editing ? (

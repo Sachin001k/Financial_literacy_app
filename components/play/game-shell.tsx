@@ -35,6 +35,7 @@ export function GameShell({ sessionId }: { sessionId: string }) {
   const [replaying, setReplaying] = useState(false);
   const [ending, setEnding] = useState(false);
   const [recovery, setRecovery] = useState<'idle' | 'running' | 'failed'>('idle');
+  const [leavingAs, setLeavingAs] = useState<'pause' | 'quit' | null>(null);
   const leaving = useRef(false);
   const inFlight = useRef(false);
   const endTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -118,11 +119,14 @@ export function GameShell({ sessionId }: { sessionId: string }) {
   }, [sessionId, refetch]);
 
   const onAction = useCallback(
-    async (type: string, payload?: Record<string, unknown>) => {
+    async (type: string, payload?: Record<string, unknown>, shownTurn?: number) => {
       // Ref guard: state updates lag a tick behind, so a fast second tap could reuse a stale turn.
       if (inFlight.current || ending) return;
       const current = qc.getQueryData<SessionDTO>(queryKeys.session(sessionId)) ?? session;
       if (!current) return;
+      // A click on a card that is still animating out belongs to a turn that's over: don't
+      // let it become a move on the next turn, which the player hasn't seen yet.
+      if (shownTurn !== undefined && shownTurn !== current.turn) return;
       inFlight.current = true;
       setBusy(true);
       play('click');
@@ -165,8 +169,17 @@ export function GameShell({ sessionId }: { sessionId: string }) {
     [session, ending, sessionId, qc, play, afterFinish, refetch],
   );
 
+  // Boards get an onAction tied to the turn they rendered; exiting (stale) elements keep the old turn.
+  const renderedTurn = session?.turn;
+  const actOnShownTurn = useCallback(
+    (type: string, payload?: Record<string, unknown>) => onAction(type, payload, renderedTurn),
+    [onAction, renderedTurn],
+  );
+
   const pauseAndLeave = async () => {
+    if (leavingAs) return;
     leaving.current = true;
+    setLeavingAs('pause');
     try {
       await gameApi.pause(sessionId);
     } catch {}
@@ -174,7 +187,9 @@ export function GameShell({ sessionId }: { sessionId: string }) {
   };
 
   const quit = async () => {
+    if (leavingAs) return;
     leaving.current = true;
+    setLeavingAs('quit');
     try {
       await gameApi.abandon(sessionId);
     } catch {}
@@ -250,13 +265,13 @@ export function GameShell({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="min-h-screen" data-play-session={sessionId}>
-      <GameHUD game={game} score={state.score ?? 0} progressLabel={hud.progress} ratio={state.finished ? 1 : ratio} stats={hud.stats} onPause={pauseAndLeave} onQuit={() => setQuitOpen(true)} disabled={busy || ending || session.status === 'FINISHED'} />
+      <GameHUD game={game} score={state.score ?? 0} progressLabel={hud.progress} ratio={state.finished ? 1 : ratio} stats={hud.stats} onPause={pauseAndLeave} onQuit={() => setQuitOpen(true)} disabled={busy || ending || Boolean(leavingAs) || session.status === 'FINISHED'} />
       <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 lg:grid-cols-[1fr_320px]">
         <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="min-w-0 space-y-5">
           {Renderer ? (
-            <Renderer state={state} actions={session.availableActions} onAction={onAction} busy={busy} events={lastEvents} />
+            <Renderer state={state} actions={session.availableActions} onAction={actOnShownTurn} busy={busy} events={lastEvents} />
           ) : null}
-          {!selfControlled && session.availableActions.length > 0 && <ChoicePanel actions={session.availableActions} onAction={onAction} busy={busy} />}
+          {!selfControlled && session.availableActions.length > 0 && <ChoicePanel actions={session.availableActions} onAction={actOnShownTurn} busy={busy} />}
           {state.finished && recovery !== 'failed' && <p className="animate-pulse text-center text-muted">Tallying your results…</p>}
           {recovery === 'failed' && (
             <div className="rounded-2xl border border-loss/30 bg-loss/5 p-4 text-center">
@@ -279,8 +294,8 @@ export function GameShell({ sessionId }: { sessionId: string }) {
         <h2 id="quit-title" className="text-xl font-bold">Quit this game?</h2>
         <p className="mt-2 text-sm text-muted">Your progress in this run will be lost and you won’t earn XP. Use pause instead to come back later.</p>
         <div className="mt-6 flex gap-3">
-          <Button variant="outline" className="flex-1" onClick={pauseAndLeave}>Pause instead</Button>
-          <Button variant="loss" className="flex-1" onClick={quit}>Quit</Button>
+          <Button variant="outline" className="flex-1" onClick={pauseAndLeave} loading={leavingAs === 'pause'} disabled={Boolean(leavingAs)}>Pause instead</Button>
+          <Button variant="loss" className="flex-1" onClick={quit} loading={leavingAs === 'quit'} disabled={Boolean(leavingAs)}>Quit</Button>
         </div>
       </Dialog>
     </div>

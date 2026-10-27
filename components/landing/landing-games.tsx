@@ -19,7 +19,8 @@ export function useGameSections() {
     queryFn: () => api<{ games: GameCardData[]; sections: Sections }>('/games'),
     enabled: Boolean(user),
   });
-  const loading = Boolean(user) && !q.data;
+  // On error, fall back to public data rather than "checking" forever; the server still enforces locks.
+  const loading = Boolean(user) && !q.data && !q.isError;
   if (user && q.data) return { sections: q.data.sections, games: q.data.games, loading: false };
   const sections = publicSections() as Sections;
   if (!loading) return { sections, games: undefined, loading };
