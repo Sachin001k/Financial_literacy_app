@@ -1,4 +1,5 @@
 import 'server-only';
+import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getGame, lockFor } from '@/lib/content/games';
 import { dailyChallengeFor } from '@/lib/content/daily';
@@ -8,6 +9,7 @@ import type { Action, ActResponse, Familiarity, FinishedSummary, GameState, Sess
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { ApiError } from './http';
 import { ProgressService } from './progress-service';
+import { BANK_GAMES, QuestionBank } from './question-bank';
 
 interface SessionRow {
   id: string;
@@ -26,6 +28,7 @@ export class GameSessionService {
   constructor(
     private db: SupabaseClient = getSupabaseAdmin(),
     private progress = new ProgressService(db),
+    private bank = new QuestionBank(db),
   ) {}
 
   private engineFor(slug: string) {
@@ -49,6 +52,7 @@ export class GameSessionService {
     const context: SessionContext = {};
     let config: Record<string, unknown> = { ...game.config };
     let seed = Math.floor(Math.random() * 2 ** 31);
+    let dailySeed: string | undefined;
 
     if (opts.daily) {
       const daily = dailyChallengeFor();
@@ -57,6 +61,7 @@ export class GameSessionService {
       config = daily.config;
       // Same seed for every player today, but not derivable without the server secret.
       seed = hashString(`daily:${daily.date}:${process.env.DAILY_SEED_SECRET ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''}`) & 0x7fffffff;
+      dailySeed = `daily:${daily.date}:${seed}`;
     } else if (opts.mission && opts.config) {
       context.mission = true;
       config = opts.config;
@@ -91,10 +96,17 @@ export class GameSessionService {
         .in('status', ['ACTIVE', 'PAUSED']);
     }
 
+    // Quiz games draw fresh questions for this player and level (logged as seen under this session id).
+    const sessionId = randomUUID();
+    if (BANK_GAMES.has(slug)) {
+      const questions = await this.bank.forGame(slug, userId, sessionId, config, seed, dailySeed);
+      if (questions) config = { ...config, questions };
+    }
+
     const state = engine.init(config, { id: userId, familiarity }, seed);
     const { data, error } = await this.db
       .from('game_sessions')
-      .insert({ user_id: userId, game_slug: slug, seed, state, turn: state.turn, score: state.score, context })
+      .insert({ id: sessionId, user_id: userId, game_slug: slug, seed, state, turn: state.turn, score: state.score, context })
       .select('*')
       .single();
     if (error || !data) throw new ApiError(500, 'SESSION_CREATE_FAILED', error?.message ?? 'Could not start game.');
@@ -213,6 +225,8 @@ export class GameSessionService {
   private async settle(row: SessionRow, natural: boolean): Promise<FinishedSummary> {
     const engine = this.engineFor(row.game_slug);
     const result = engine.computeResult(row.state);
+    // Safe to repeat on a retried settle: only unmarked answers are updated.
+    await this.bank.record(row.user_id, row.id, engine.answeredQuestions?.(row.state) ?? []);
     const totalTurns = Number((row.state as { totalTurns?: number }).totalTurns ?? 0);
     const progress = await this.progress.onGameFinished({
       userId: row.user_id,

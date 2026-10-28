@@ -2,9 +2,9 @@ import { BaseGameEngine, clamp, type BaseState } from '../base-engine';
 import { SeededRandom } from '../seeded-random';
 import { GameRuleError, type Action, type EngineUser, type GameEvent, type GameResult, type GameState } from '../types';
 
-interface ChallengeCard {
+export interface ChallengeCard {
   id: string;
-  topic: 'Discounts' | 'EMI' | 'Inflation' | 'Scams' | 'UPI safety' | 'Compound interest' | 'Budgeting' | 'Credit';
+  topic: string;
   emoji: string;
   prompt: string;
   options: string[];
@@ -12,6 +12,7 @@ interface ChallengeCard {
   explanation: string;
 }
 
+/** Built-in fallback for when the question bank (Supabase `questions` table) is unavailable. */
 const CARDS: ChallengeCard[] = [
   { id: 'disc-1', topic: 'Discounts', emoji: '🏷️', prompt: 'A ₹2,000 jacket is “40% off”. Another shop sells the same jacket for ₹1,300. Which is cheaper?', options: ['The 40% off jacket (₹1,200)', 'The ₹1,300 jacket', 'They cost the same'], correctIndex: 0, explanation: '40% of ₹2,000 is ₹800, so the sale price is ₹1,200 — cheaper than ₹1,300. Always do the maths instead of trusting the loudest sign.' },
   { id: 'disc-2', topic: 'Discounts', emoji: '🛒', prompt: '“Buy 2, get 1 free” on ₹300 shampoo. You only need one bottle. What’s the smart move?', options: ['Buy 3 — free is free!', 'Buy just 1 bottle', 'Buy 2 to be safe'], correctIndex: 1, explanation: 'A deal only saves money if you needed the extra items. Otherwise you spent ₹600 instead of ₹300.' },
@@ -38,6 +39,8 @@ export interface ChallengeState extends BaseState {
   totalTurns: number;
   /** Private: content ids in play order (blanked by publicState). */
   deck: string[];
+  /** Private: the drawn cards, with answers, when they came from the question bank (stripped by publicState). */
+  cards?: ChallengeCard[];
   /** Private: per-card option order, perms[i][shown] = original option index (stripped by publicState). */
   perms: number[][];
   index: number;
@@ -52,8 +55,11 @@ export interface ChallengeState extends BaseState {
 
 const slotId = (index: number) => `card-${index + 1}`;
 
-function publicCard(state: Pick<ChallengeState, 'deck' | 'perms'>, index: number): ChallengeState['current'] {
-  const c = CARDS.find((x) => x.id === state.deck[index]);
+const cardAt = (state: Pick<ChallengeState, 'deck' | 'cards'>, index: number) =>
+  state.cards ? state.cards[index] : CARDS.find((x) => x.id === state.deck[index]);
+
+function publicCard(state: Pick<ChallengeState, 'deck' | 'cards' | 'perms'>, index: number): ChallengeState['current'] {
+  const c = cardAt(state, index);
   if (!c) return null;
   const perm = state.perms[index];
   return { id: slotId(index), topic: c.topic, emoji: c.emoji, prompt: c.prompt, options: perm.map((o) => c.options[o]) };
@@ -63,10 +69,12 @@ export class MoneyChallengesEngine extends BaseGameEngine<ChallengeState> {
   readonly slug = 'money-challenges';
 
   init(config: unknown, _user: EngineUser, seed: number): ChallengeState {
-    const c = (config ?? {}) as { cards?: number };
-    const count = clamp(Math.round(c.cards ?? 10), 1, CARDS.length);
+    const c = (config ?? {}) as { cards?: number; questions?: ChallengeCard[] };
+    const fromBank = Array.isArray(c.questions) && c.questions.length > 0;
+    const pool = fromBank ? c.questions! : CARDS;
+    const count = clamp(Math.round(c.cards ?? 10), 1, pool.length);
     const rng = new SeededRandom(seed);
-    const cards = rng.shuffle(CARDS).slice(0, count);
+    const cards = rng.shuffle(pool).slice(0, count);
     const deck = cards.map((x) => x.id);
     // Shuffle each card's options so answer positions can't be memorised.
     const perms = cards.map((x) => rng.shuffle(x.options.map((_, i) => i)));
@@ -75,12 +83,13 @@ export class MoneyChallengesEngine extends BaseGameEngine<ChallengeState> {
       rngState: rng.state,
       totalTurns: count,
       deck,
+      ...(fromBank ? { cards } : {}),
       perms,
       index: 0,
       correct: 0,
       streak: 0,
       bestStreak: 0,
-      current: publicCard({ deck, perms }, 0),
+      current: publicCard({ deck, cards: fromBank ? cards : undefined, perms }, 0),
       lastReveal: null,
       answers: [],
     };
@@ -96,7 +105,7 @@ export class MoneyChallengesEngine extends BaseGameEngine<ChallengeState> {
   }
 
   protected step(state: ChallengeState, action: Action): GameEvent[] {
-    const card = CARDS.find((c) => c.id === state.deck[state.index]);
+    const card = cardAt(state, state.index);
     if (!card) throw new GameRuleError('NO_CARD', 'No card to answer.');
     const choice = action.payload?.choice;
     if (typeof choice !== 'number' || !Number.isInteger(choice) || choice < 0 || choice >= card.options.length) {
@@ -128,8 +137,14 @@ export class MoneyChallengesEngine extends BaseGameEngine<ChallengeState> {
   }
 
   publicState(state: ChallengeState): GameState {
-    const { perms: _perms, ...rest } = super.publicState(state) as ChallengeState;
+    const { perms: _perms, cards: _cards, ...rest } = super.publicState(state) as ChallengeState;
     return { ...rest, deck: state.deck.map(() => '') };
+  }
+
+  answeredQuestions(state: ChallengeState) {
+    const cards = state.cards;
+    if (!cards) return [];
+    return state.answers.map((a, i) => ({ questionId: cards[i].id, correct: a.correct }));
   }
 
   computeResult(state: ChallengeState): GameResult {

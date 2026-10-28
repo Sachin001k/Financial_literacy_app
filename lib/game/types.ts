@@ -58,6 +58,8 @@ export interface GameEngine<S extends GameState = GameState> {
   computeResult(state: S): GameResult;
   /** The state as sent to the client: strips the RNG position, hidden answers and anything else that predicts outcomes. */
   publicState(state: S): GameState;
+  /** Bank-backed games: which question-bank questions were answered, and whether correctly. */
+  answeredQuestions?(state: S): { questionId: string; correct: boolean }[];
 }
 
 export class GameRuleError extends Error {

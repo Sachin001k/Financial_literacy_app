@@ -37,6 +37,13 @@ The rules from the doc still hold. Game engines are pure and seeded. The client 
    - `supabase/migrations/0001_init.sql`
    - `supabase/migrations/0002_jobs.sql`
    - `supabase/migrations/0003_fixes.sql`
+   - `supabase/migrations/0004_question_bank.sql` (question bank tables and draw functions)
+   - `supabase/migrations/0005_seed_questions.sql` (starter questions; safe to re-run)
+
+   Quiz questions for Money Challenges and Scam or Legit live in the `questions` table. Edit them in the
+   Supabase table editor; set `active = false` to retire one. Each player gets questions at their level
+   (Beginner → Intermediate → Advanced, moving with their results) and doesn't see a repeat until they've
+   used up the pool.
 
    If you use the Supabase CLI instead, run `supabase db push`.
 3. **Add your keys.** Copy `.env.example` to `.env.local` and fill in the values from *Project Settings → API*:

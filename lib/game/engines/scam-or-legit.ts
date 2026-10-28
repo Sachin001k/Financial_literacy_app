@@ -2,7 +2,7 @@ import { BaseGameEngine, clamp, type BaseState } from '../base-engine';
 import { SeededRandom } from '../seeded-random';
 import { GameRuleError, type Action, type EngineUser, type GameEvent, type GameResult, type GameState } from '../types';
 
-interface Message {
+export interface ScamMessage {
   id: string;
   channel: 'SMS' | 'WhatsApp' | 'Email' | 'Call' | 'App';
   sender: string;
@@ -12,8 +12,9 @@ interface Message {
   explanation: string;
 }
 
+// Built-in fallback for when the question bank is unavailable.
 // All brands are fictional. Messages mirror common Indian fraud patterns and genuine notices.
-const MESSAGES: Message[] = [
+const MESSAGES: ScamMessage[] = [
   { id: 'kyc-link', channel: 'SMS', sender: 'VM-BHRTBK', body: 'Dear customer, your Bharat Bank account will be BLOCKED today. Update KYC now: bharat-bank-kyc.co/update', isScam: true, redFlags: ['Urgent threat of blocking', 'Lookalike link, not the bank’s domain', 'Banks don’t do KYC by SMS link'], explanation: 'Banks never ask you to update KYC through a random link. Visit the branch or the official app.' },
   { id: 'otp-call', channel: 'Call', sender: '+91 98XXX 21034', body: '“Sir, I am calling from your bank’s fraud department. Please tell me the OTP you just received so we can cancel the suspicious transaction.”', isScam: true, redFlags: ['Asks for OTP', 'Unknown mobile number', 'Creates panic'], explanation: 'Nobody genuine will ever ask for your OTP. Hang up.' },
   { id: 'collect', channel: 'App', sender: 'UPI collect request', body: 'Rahul_OLX has requested ₹4,999. Enter UPI PIN to RECEIVE payment for your sofa.', isScam: true, redFlags: ['“Enter PIN to receive” is impossible', 'Collect request from a stranger'], explanation: 'Entering your UPI PIN always sends money. You never need it to receive.' },
@@ -39,28 +40,37 @@ const MESSAGES: Message[] = [
 export interface ScamState extends BaseState {
   totalTurns: number;
   deck: string[];
+  /** Private: the drawn messages, with answers, when they came from the question bank (stripped by publicState). */
+  messages?: ScamMessage[];
+  /** Private: right/wrong per answered message, in deck order. */
+  marks?: boolean[];
   index: number;
   correct: number;
   scamsMissed: number;
   falseAlarms: number;
   scamsTotal: number;
-  current: Pick<Message, 'id' | 'channel' | 'sender' | 'body'> | null;
-  lastReveal: { id: string; call: 'SCAM' | 'LEGIT'; isScam: boolean; correct: boolean; redFlags: string[]; explanation: string; message: Pick<Message, 'channel' | 'sender' | 'body'> } | null;
+  current: Pick<ScamMessage, 'id' | 'channel' | 'sender' | 'body'> | null;
+  lastReveal: { id: string; call: 'SCAM' | 'LEGIT'; isScam: boolean; correct: boolean; redFlags: string[]; explanation: string; message: Pick<ScamMessage, 'channel' | 'sender' | 'body'> } | null;
 }
 
 /** Client-facing ids are per-session slots (`msg-<n>`), never content ids. */
-const pub = (m: Message, index: number) => ({ id: `msg-${index + 1}`, channel: m.channel, sender: m.sender, body: m.body });
+const messageAt = (state: Pick<ScamState, 'deck' | 'messages'>, index: number) =>
+  state.messages ? state.messages[index] : MESSAGES.find((m) => m.id === state.deck[index]);
+
+const pub = (m: ScamMessage, index: number) => ({ id: `msg-${index + 1}`, channel: m.channel, sender: m.sender, body: m.body });
 
 export class ScamOrLegitEngine extends BaseGameEngine<ScamState> {
   readonly slug = 'scam-or-legit';
 
   init(config: unknown, _user: EngineUser, seed: number): ScamState {
-    const c = (config ?? {}) as { cards?: number };
-    const count = clamp(Math.round(c.cards ?? 12), 1, MESSAGES.length);
+    const c = (config ?? {}) as { cards?: number; questions?: ScamMessage[] };
+    const fromBank = Array.isArray(c.questions) && c.questions.length > 0;
+    const pool = fromBank ? c.questions! : MESSAGES;
+    const count = clamp(Math.round(c.cards ?? 12), 1, pool.length);
     const rng = new SeededRandom(seed);
-    // Keep the mix roughly 60/40 scam/legit so both calls matter.
-    const scams = rng.shuffle(MESSAGES.filter((m) => m.isScam));
-    const legit = rng.shuffle(MESSAGES.filter((m) => !m.isScam));
+    // Keep the mix roughly 60/40 scam/legit so both calls matter (the bank already draws in that ratio).
+    const scams = rng.shuffle(pool.filter((m) => m.isScam));
+    const legit = rng.shuffle(pool.filter((m) => !m.isScam));
     const nScam = Math.min(scams.length, Math.round(count * 0.6));
     const picked = rng.shuffle([...scams.slice(0, nScam), ...legit.slice(0, count - nScam)]);
     const deck = picked.map((m) => m.id);
@@ -69,6 +79,8 @@ export class ScamOrLegitEngine extends BaseGameEngine<ScamState> {
       rngState: rng.state,
       totalTurns: deck.length,
       deck,
+      ...(fromBank ? { messages: picked } : {}),
+      marks: [],
       index: 0,
       correct: 0,
       scamsMissed: 0,
@@ -92,7 +104,7 @@ export class ScamOrLegitEngine extends BaseGameEngine<ScamState> {
   }
 
   protected step(state: ScamState, action: Action): GameEvent[] {
-    const msg = MESSAGES.find((m) => m.id === state.deck[state.index]);
+    const msg = messageAt(state, state.index);
     if (!msg) throw new GameRuleError('NO_MESSAGE', 'No message to judge.');
     const call = action.type as 'SCAM' | 'LEGIT';
     const slot = `msg-${state.index + 1}`;
@@ -113,23 +125,31 @@ export class ScamOrLegitEngine extends BaseGameEngine<ScamState> {
     }
     events.push({ kind: 'TIP', message: msg.explanation });
     if (msg.isScam && !right && !state.learned.includes(msg.explanation)) state.learned.push(msg.explanation);
+    (state.marks ??= []).push(right);
     state.lastReveal = { id: slot, call, isScam: msg.isScam, correct: right, redFlags: msg.redFlags, explanation: msg.explanation, message: { channel: msg.channel, sender: msg.sender, body: msg.body } };
     state.index += 1;
-    const next = MESSAGES.find((m) => m.id === state.deck[state.index]);
+    const next = messageAt(state, state.index);
     state.current = next ? pub(next, state.index) : null;
     if (!state.current && state.scamsMissed === 0 && state.falseAlarms <= 1) state.score = Math.min(1000, state.score + 40);
     return events;
   }
 
   publicState(state: ScamState): GameState {
-    return { ...super.publicState(state), deck: state.deck.map(() => '') };
+    const { messages: _messages, marks: _marks, ...rest } = super.publicState(state) as ScamState;
+    return { ...rest, deck: state.deck.map(() => '') };
+  }
+
+  answeredQuestions(state: ScamState) {
+    const messages = state.messages;
+    if (!messages) return [];
+    return (state.marks ?? []).map((correct, i) => ({ questionId: messages[i].id, correct }));
   }
 
   computeResult(state: ScamState): GameResult {
     const total = Math.max(1, state.deck.length);
     const answered = state.index;
     // Unanswered scams in a force-ended game count as missed.
-    const remainingScams = state.deck.slice(answered).filter((id) => MESSAGES.find((m) => m.id === id)?.isScam).length;
+    const remainingScams = state.deck.slice(answered).filter((_, i) => messageAt(state, answered + i)?.isScam).length;
     return {
       finalScore: state.score,
       performance: clamp(state.score / (total * 80 + 40), 0, 1) || 0,
